@@ -26,7 +26,9 @@ function App() {
   // Compute HTTP API base URL from WS URL
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
   const defaultUrl = `ws://${isLocal ? window.location.hostname : 'localhost'}:6005/ws`;
-  const wsUrl = isLocal ? defaultUrl : (import.meta.env.VITE_WS_URL || defaultUrl);
+  const rawWsUrl = isLocal ? defaultUrl : (import.meta.env.VITE_WS_URL || defaultUrl);
+  // Ensure wsUrl starts with ws:// or wss:// even if input is http:// or https://
+  const wsUrl = rawWsUrl.replace(/^http/, 'ws');
   const apiBaseUrl = wsUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
 
   function toggleCamera() {
