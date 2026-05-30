@@ -299,33 +299,6 @@ function App() {
                 />
               </div>
 
-              <div className="setting-item">
-                <div className="setting-label">
-                  <span>Index de la Caméra : {cameraIndex}</span>
-                  <span className="info-txt">Sélectionnez le périphérique vidéo</span>
-                </div>
-                <select 
-                  value={cameraIndex} 
-                  onChange={handleCameraIndexChange}
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    color: '#fff',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '0.75rem',
-                    padding: '0.5rem 0.75rem',
-                    marginTop: '0.25rem',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    fontFamily: 'inherit',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  <option value={0} style={{ background: '#0f172a', color: '#fff' }}>Caméra par défaut (0)</option>
-                  <option value={1} style={{ background: '#0f172a', color: '#fff' }}>Caméra secondaire (1)</option>
-                  <option value={2} style={{ background: '#0f172a', color: '#fff' }}>Autre caméra (2)</option>
-                  <option value={3} style={{ background: '#0f172a', color: '#fff' }}>Autre caméra (3)</option>
-                </select>
-              </div>
             </motion.div>
           )}
         </AnimatePresence>
