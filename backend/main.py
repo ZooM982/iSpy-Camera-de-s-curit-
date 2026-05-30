@@ -11,9 +11,17 @@ import asyncio
 import base64
 import logging
 
+# Get absolute path for recordings directory relative to this script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RECORDINGS_DIR = os.path.join(BASE_DIR, "recordings")
+
+# Ensure recordings directory exists before configuring logging!
+if not os.path.exists(RECORDINGS_DIR):
+    os.makedirs(RECORDINGS_DIR)
+
 # Configure logging to a file to track activity when screen is off
 logging.basicConfig(
-    filename='recordings/activity.log',
+    filename=os.path.join(RECORDINGS_DIR, "activity.log"),
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -36,9 +44,7 @@ last_frame = None
 recording = False
 out = None
 
-# Ensure recordings directory exists
-if not os.path.exists("recordings"):
-    os.makedirs("recordings")
+# Recordings directory is initialized at the top of the file
 
 class VideoCamera:
     def __init__(self):
@@ -181,7 +187,7 @@ class VideoCamera:
     def start_recording(self):
         self.recording = True
         self.recording_start_time = time.time() # Reset start time
-        filename = f"recordings/motion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+        filename = os.path.join(RECORDINGS_DIR, f"motion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.out = cv2.VideoWriter(filename, fourcc, 15.0, (1280, 720))
         logging.info(f"STARTED RECORDING: {filename}")
@@ -262,10 +268,10 @@ async def websocket_endpoint(websocket: WebSocket):
 def get_recordings():
     try:
         files = []
-        if os.path.exists("recordings"):
-            for f in os.listdir("recordings"):
+        if os.path.exists(RECORDINGS_DIR):
+            for f in os.listdir(RECORDINGS_DIR):
                 if f.endswith(".mp4"):
-                    path = os.path.join("recordings", f)
+                    path = os.path.join(RECORDINGS_DIR, f)
                     stats = os.stat(path)
                     files.append({
                         "id": f,
@@ -282,7 +288,7 @@ def get_recordings():
 @app.get("/api/recordings/play/{filename}")
 def play_recording(filename: str):
     safe_filename = os.path.basename(filename)
-    path = os.path.join("recordings", safe_filename)
+    path = os.path.join(RECORDINGS_DIR, safe_filename)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(path, media_type="video/mp4")
@@ -290,7 +296,7 @@ def play_recording(filename: str):
 @app.delete("/api/recordings/{filename}")
 def delete_recording(filename: str):
     safe_filename = os.path.basename(filename)
-    path = os.path.join("recordings", safe_filename)
+    path = os.path.join(RECORDINGS_DIR, safe_filename)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File not found")
     try:
