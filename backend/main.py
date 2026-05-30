@@ -48,13 +48,9 @@ out = None
 
 class VideoCamera:
     def __init__(self):
-        self.video = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-        # Set resolution to HD for wider field of view
-        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        self.video = None
+        self._init_camera()
         
-        if not self.video.isOpened():
-            print("Error: Could not open camera.")
         self.reference_frame = None
         self.motion_detected = False
         self.recording = False
@@ -82,6 +78,23 @@ class VideoCamera:
         self.motion_threshold = 15
         self.min_contour_area = 200
 
+    def _init_camera(self):
+        print("Initializing camera Capture...")
+        logging.info("Initializing camera Capture...")
+        try:
+            if self.video is not None:
+                self.video.release()
+        except Exception as e:
+            print(f"Error releasing camera: {e}")
+        
+        self.video = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        
+        if not self.video.isOpened():
+            print("Warning: Could not open camera during initialization.")
+            logging.warning("Warning: Could not open camera during initialization.")
+
     def toggle(self, status: bool):
         self.is_active = status
         if not status:
@@ -89,7 +102,8 @@ class VideoCamera:
         print(f"System status: {'Active' if status else 'Inactive'}")
 
     def __del__(self):
-        self.video.release()
+        if self.video is not None:
+            self.video.release()
 
     def get_frame(self):
         if not self.is_active:
@@ -97,11 +111,19 @@ class VideoCamera:
             cv2.putText(img, "System Standby", (200, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (100, 100, 100), 2)
             return img, False
 
+        # If camera not open, attempt to reinitialize
         if not self.video.isOpened():
-            # Create a black frame with text
-            img = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.putText(img, "Camera Not Found", (180, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            return img, False
+            now = time.time()
+            if not hasattr(self, 'last_reconnect_time') or (now - self.last_reconnect_time > 5.0):
+                self.last_reconnect_time = now
+                logging.info("Camera not open. Attempting reconnection...")
+                self._init_camera()
+            
+            if not self.video.isOpened():
+                # Create a black frame with text
+                img = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.putText(img, "Camera Not Found", (180, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                return img, False
 
         success, image = self.video.read()
         
@@ -113,9 +135,8 @@ class VideoCamera:
 
         if not success:
             logging.warning("Failed to read from camera. Attempting reconnection...")
-            self.video.release()
+            self._init_camera()
             time.sleep(2)
-            self.video = cv2.VideoCapture(0, cv2.CAP_DSHOW)
             return None, False
 
         self.frame_count += 1
@@ -224,7 +245,8 @@ class VideoCamera:
             try:
                 frame, motion = self.get_frame()
                 if frame is not None:
-                    _, buffer = cv2.imencode('.jpg', frame)
+                    # Compress JPEG quality to 50% to save 5x bandwidth
+                    _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
                     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
                     self.latest_frame_b64 = jpg_as_text
                     self.latest_motion = motion
@@ -236,7 +258,7 @@ class VideoCamera:
             except Exception as e:
                 print(f"Error in camera background loop: {e}")
                 logging.error(f"Error in camera background loop: {e}")
-            time.sleep(0.05) # ~20 FPS
+            time.sleep(0.1) # ~10 FPS (saves 2x bandwidth and reduces CPU load)
 
 def generate_missing_thumbnails():
     print("Scanning for missing video thumbnails...")
