@@ -308,7 +308,18 @@ function App() {
                 ) : (
                   recordings.map((video) => (
                     <div key={video.id} className="event-card">
+                      <div className="event-thumbnail" onClick={() => setActiveVideo(video.id)}>
+                        <img 
+                          src={`${apiBaseUrl}/api/recordings/thumbnail/${video.id}`} 
+                          alt="Miniature" 
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = '/logo.svg';
+                          }}
+                        />
+                      </div>
                       <div className="event-details" onClick={() => setActiveVideo(video.id)}>
+                        <span className="video-filename" title={video.name}>{video.name}</span>
                         <h4>{formatDate(video.date)}</h4>
                         <p>{formatSize(video.size)}</p>
                       </div>

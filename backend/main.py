@@ -188,6 +188,7 @@ class VideoCamera:
         self.recording = True
         self.recording_start_time = time.time() # Reset start time
         filename = os.path.join(RECORDINGS_DIR, f"motion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
+        self.current_recording_filename = filename
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.out = cv2.VideoWriter(filename, fourcc, 15.0, (1280, 720))
         logging.info(f"STARTED RECORDING: {filename}")
@@ -200,6 +201,21 @@ class VideoCamera:
             self.out = None
         logging.info("STOPPED RECORDING")
         print("Stopped recording")
+        
+        # Generate thumbnail
+        if hasattr(self, 'current_recording_filename') and self.current_recording_filename:
+            try:
+                cap = cv2.VideoCapture(self.current_recording_filename)
+                success, frame = cap.read()
+                if success:
+                    thumb_path = os.path.splitext(self.current_recording_filename)[0] + ".jpg"
+                    thumb_frame = cv2.resize(frame, (160, 90))
+                    cv2.imwrite(thumb_path, thumb_frame)
+                    logging.info(f"Generated thumbnail: {thumb_path}")
+                cap.release()
+            except Exception as e:
+                logging.error(f"Error generating thumbnail: {e}")
+            self.current_recording_filename = None
 
     def update_loop(self):
         print("Camera background loop started")
@@ -221,6 +237,28 @@ class VideoCamera:
                 print(f"Error in camera background loop: {e}")
                 logging.error(f"Error in camera background loop: {e}")
             time.sleep(0.05) # ~20 FPS
+
+def generate_missing_thumbnails():
+    print("Scanning for missing video thumbnails...")
+    try:
+        if os.path.exists(RECORDINGS_DIR):
+            for f in os.listdir(RECORDINGS_DIR):
+                if f.endswith(".mp4"):
+                    video_path = os.path.join(RECORDINGS_DIR, f)
+                    thumb_path = os.path.splitext(video_path)[0] + ".jpg"
+                    if not os.path.exists(thumb_path):
+                        cap = cv2.VideoCapture(video_path)
+                        success, frame = cap.read()
+                        if success:
+                            thumb_frame = cv2.resize(frame, (160, 90))
+                            cv2.imwrite(thumb_path, thumb_frame)
+                            print(f"Generated missing thumbnail for {f}")
+                        cap.release()
+    except Exception as e:
+        print(f"Error generating startup thumbnails: {e}")
+
+# Generate missing thumbnails on start
+generate_missing_thumbnails()
 
 video_camera = VideoCamera()
 
@@ -293,14 +331,26 @@ def play_recording(filename: str):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(path, media_type="video/mp4")
 
+@app.get("/api/recordings/thumbnail/{filename}")
+def get_thumbnail(filename: str):
+    safe_filename = os.path.basename(filename)
+    thumb_filename = os.path.splitext(safe_filename)[0] + ".jpg"
+    path = os.path.join(RECORDINGS_DIR, thumb_filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+    return FileResponse(path, media_type="image/jpeg")
+
 @app.delete("/api/recordings/{filename}")
 def delete_recording(filename: str):
     safe_filename = os.path.basename(filename)
     path = os.path.join(RECORDINGS_DIR, safe_filename)
+    thumb_path = os.path.splitext(path)[0] + ".jpg"
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File not found")
     try:
         os.remove(path)
+        if os.path.exists(thumb_path):
+            os.remove(thumb_path)
         logging.info(f"DELETED RECORDING: {safe_filename}")
         return {"status": "success", "message": f"Deleted {safe_filename}"}
     except Exception as e:
