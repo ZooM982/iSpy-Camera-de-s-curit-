@@ -1,0 +1,24 @@
+{
+  "short_name": "iSpy AI",
+  "name": "iSpy AI Security System",
+  "description": "Système de surveillance vidéo intelligent par IA avec détection de mouvement et enregistrement automatique.",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "48x48 72x72 96x96 128x128 192x192 256x256 512x512",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "display": "standalone",
+  "orientation": "any"
+}

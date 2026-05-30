@@ -1,0 +1,15 @@
+# Project Rules
+
+- **CRITICAL**: Do NOT execute any commands in the terminal.
+- Never use the `run_command` tool or propose terminal commands to run.
+- Perform all file operations, analyses, and code changes using specific file tools (`view_file`, `write_to_file`, `replace_file_content`, `multi_replace_file_content`, `grep_search`, `list_dir`).
+- If you need to build, test, or run the application, explain to the user how they can do it themselves in their terminal.
+
+---
+
+# Règles du Projet
+
+- **CRITIQUE** : Ne JAMAIS exécuter de commandes dans le terminal.
+- N'utilisez jamais l'outil `run_command` ni ne proposez de commandes de terminal à exécuter.
+- Effectuez toutes les opérations sur les fichiers, les analyses et les modifications de code à l'aide des outils de fichiers spécifiques (`view_file`, `write_to_file`, `replace_file_content`, `multi_replace_file_content`, `grep_search`, `list_dir`).
+- Si vous devez compiler, tester ou lancer l'application, expliquez à l'utilisateur comment il peut le faire lui-même dans son terminal.
