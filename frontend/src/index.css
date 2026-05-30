@@ -506,6 +506,7 @@ header * {
 
 .gallery-panel .event-list {
   flex-grow: 1;
+  max-height: none;
   overflow-y: auto;
   padding-right: 4px;
   padding-bottom: 8rem; /* Zone augmentée pour le scroll confortable en bas */

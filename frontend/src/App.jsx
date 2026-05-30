@@ -11,6 +11,7 @@ function App() {
   // Settings & Config
   const [threshold, setThreshold] = useState(15);
   const [minArea, setMinArea] = useState(200);
+  const [cameraIndex, setCameraIndex] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   
   // Gallery & Video states
@@ -23,8 +24,9 @@ function App() {
   const ws = useRef(null);
 
   // Compute HTTP API base URL from WS URL
-  const defaultUrl = `ws://${window.location.hostname}:6005/ws`;
-  const wsUrl = import.meta.env.VITE_WS_URL || defaultUrl;
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
+  const defaultUrl = `ws://${isLocal ? window.location.hostname : 'localhost'}:6005/ws`;
+  const wsUrl = isLocal ? defaultUrl : (import.meta.env.VITE_WS_URL || defaultUrl);
   const apiBaseUrl = wsUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
 
   function toggleCamera() {
@@ -36,12 +38,13 @@ function App() {
     }
   }
 
-  function sendConfig(newThreshold, newMinArea) {
+  function sendConfig(newThreshold, newMinArea, newCameraIndex) {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
         command: 'update_config',
         threshold: newThreshold,
-        min_area: newMinArea
+        min_area: newMinArea,
+        camera_index: newCameraIndex
       }));
     }
   }
@@ -49,13 +52,19 @@ function App() {
   function handleThresholdChange(e) {
     const val = parseInt(e.target.value);
     setThreshold(val);
-    sendConfig(val, minArea);
+    sendConfig(val, minArea, cameraIndex);
   }
 
   function handleMinAreaChange(e) {
     const val = parseInt(e.target.value);
     setMinArea(val);
-    sendConfig(threshold, val);
+    sendConfig(threshold, val, cameraIndex);
+  }
+
+  function handleCameraIndexChange(e) {
+    const val = parseInt(e.target.value);
+    setCameraIndex(val);
+    sendConfig(threshold, minArea, val);
   }
 
   async function fetchRecordings() {
@@ -137,6 +146,9 @@ function App() {
       }
       if (data.min_area !== undefined) {
         setMinArea(data.min_area);
+      }
+      if (data.camera_index !== undefined) {
+        setCameraIndex(data.camera_index);
       }
       
       setTimestamp(new Date(data.timestamp).toLocaleTimeString());
@@ -280,6 +292,34 @@ function App() {
                   value={minArea} 
                   onChange={handleMinAreaChange}
                 />
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-label">
+                  <span>Index de la Caméra : {cameraIndex}</span>
+                  <span className="info-txt">Sélectionnez le périphérique vidéo</span>
+                </div>
+                <select 
+                  value={cameraIndex} 
+                  onChange={handleCameraIndexChange}
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    color: '#fff',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '0.75rem',
+                    padding: '0.5rem 0.75rem',
+                    marginTop: '0.25rem',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    fontFamily: 'inherit',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  <option value={0} style={{ background: '#0f172a', color: '#fff' }}>Caméra par défaut (0)</option>
+                  <option value={1} style={{ background: '#0f172a', color: '#fff' }}>Caméra secondaire (1)</option>
+                  <option value={2} style={{ background: '#0f172a', color: '#fff' }}>Autre caméra (2)</option>
+                  <option value={3} style={{ background: '#0f172a', color: '#fff' }}>Autre caméra (3)</option>
+                </select>
               </div>
             </motion.div>
           )}

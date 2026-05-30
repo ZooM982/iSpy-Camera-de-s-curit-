@@ -49,6 +49,7 @@ out = None
 class VideoCamera:
     def __init__(self):
         self.video = None
+        self.camera_index = 0
         self._init_camera()
         
         self.reference_frame = None
@@ -78,22 +79,29 @@ class VideoCamera:
         self.motion_threshold = 15
         self.min_contour_area = 200
 
-    def _init_camera(self):
-        print("Initializing camera Capture...")
-        logging.info("Initializing camera Capture...")
+    def _init_camera(self, index=None):
+        if index is not None:
+            self.camera_index = index
+        print(f"Initializing camera Capture (index {self.camera_index})...")
+        logging.info(f"Initializing camera Capture (index {self.camera_index})...")
         try:
             if self.video is not None:
                 self.video.release()
         except Exception as e:
             print(f"Error releasing camera: {e}")
         
-        self.video = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        # Try default backend (MSMF) first, fallback to DSHOW if needed
+        self.video = cv2.VideoCapture(self.camera_index)
+        if not self.video.isOpened():
+            self.video = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
+            
+        if self.video.isOpened():
+            self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         
         if not self.video.isOpened():
-            print("Warning: Could not open camera during initialization.")
-            logging.warning("Warning: Could not open camera during initialization.")
+            print(f"Warning: Could not open camera {self.camera_index} during initialization.")
+            logging.warning(f"Warning: Could not open camera {self.camera_index} during initialization.")
 
     def toggle(self, status: bool):
         self.is_active = status
@@ -141,16 +149,30 @@ class VideoCamera:
 
         self.frame_count += 1
 
-        # Keep a copy of the clean image before drawing bounding boxes
+        # Check if the frame is completely black (average intensity < 1.0)
+        mean_val = np.mean(image)
+        is_black_feed = False
+        if mean_val < 1.0:
+            if not hasattr(self, 'consecutive_black_frames'):
+                self.consecutive_black_frames = 0
+            self.consecutive_black_frames += 1
+            if self.consecutive_black_frames > 10:
+                is_black_feed = True
+        else:
+            self.consecutive_black_frames = 0
+
+        # Keep a copy of the clean image before drawing warning text or bounding boxes
         clean_image = image.copy()
 
-        # 0. Enhance image for low light
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        # 0. Enhance image for low light (use clean image to avoid processing text as motion)
+        gray = cv2.cvtColor(clean_image, cv2.COLOR_BGR2GRAY)
         gray = self.clahe.apply(gray) # Apply contrast enhancement
         gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
         if self.reference_frame is None:
             self.reference_frame = gray.copy().astype("float")
+            if is_black_feed:
+                self.draw_black_feed_warning(image)
             return image, False
 
         # 1. General Motion detection (Frame Differencing)
@@ -170,7 +192,7 @@ class VideoCamera:
 
         # 2. Human AI detection (HOG)
         # Resize even more for performance (0.3 instead of 0.5)
-        small_frame = cv2.resize(image, (0, 0), fx=0.3, fy=0.3)
+        small_frame = cv2.resize(clean_image, (0, 0), fx=0.3, fy=0.3)
         (rects, weights) = self.hog.detectMultiScale(small_frame, winStride=(8, 8), padding=(8, 8), scale=1.05)
         
         human_found = len(rects) > 0
@@ -202,6 +224,9 @@ class VideoCamera:
 
         if self.recording and self.out:
             self.out.write(clean_image)
+
+        if is_black_feed:
+            self.draw_black_feed_warning(image)
 
         return image, self.motion_detected
 
@@ -237,6 +262,12 @@ class VideoCamera:
             except Exception as e:
                 logging.error(f"Error generating thumbnail: {e}")
             self.current_recording_filename = None
+
+    def draw_black_feed_warning(self, img):
+        h, w = img.shape[:2]
+        cv2.putText(img, "Flux noir detecte !", (50, h // 2 - 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+        cv2.putText(img, "Verifiez le cache physique (shutter) de la webcam", (50, h // 2 + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(img, "ou tentez une autre camera (index 1 ou 2)", (50, h // 2 + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
     def update_loop(self):
         print("Camera background loop started")
@@ -305,6 +336,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif data.get("command") == "update_config":
                     video_camera.motion_threshold = int(data.get("threshold", video_camera.motion_threshold))
                     video_camera.min_contour_area = int(data.get("min_area", video_camera.min_contour_area))
+                    new_index = data.get("camera_index")
+                    if new_index is not None:
+                        video_camera._init_camera(int(new_index))
             except asyncio.TimeoutError:
                 pass
 
@@ -315,7 +349,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     "timestamp": video_camera.latest_timestamp,
                     "active": video_camera.is_active,
                     "threshold": video_camera.motion_threshold,
-                    "min_area": video_camera.min_contour_area
+                    "min_area": video_camera.min_contour_area,
+                    "camera_index": video_camera.camera_index
                 })
             
             await asyncio.sleep(0.05) # ~20 FPS
