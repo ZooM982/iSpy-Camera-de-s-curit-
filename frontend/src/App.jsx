@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Shield, Radio, Play, Pause } from 'lucide-react';
+import { Shield, Radio, Play, Pause, Film, Sliders, Trash2, Download, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
@@ -7,7 +7,24 @@ function App() {
   const [isMotion, setIsMotion] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [timestamp, setTimestamp] = useState('');
+  
+  // Settings & Config
+  const [threshold, setThreshold] = useState(15);
+  const [minArea, setMinArea] = useState(200);
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // Gallery & Video states
+  const [recordings, setRecordings] = useState([]);
+  const [showGallery, setShowGallery] = useState(false);
+  const [activeVideo, setActiveVideo] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
   const ws = useRef(null);
+
+  // Compute HTTP API base URL from WS URL
+  const defaultUrl = `ws://${window.location.hostname}:6005/ws`;
+  const wsUrl = import.meta.env.VITE_WS_URL || defaultUrl;
+  const apiBaseUrl = wsUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
 
   function toggleCamera() {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
@@ -18,9 +35,80 @@ function App() {
     }
   }
 
+  function sendConfig(newThreshold, newMinArea) {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        command: 'update_config',
+        threshold: newThreshold,
+        min_area: newMinArea
+      }));
+    }
+  }
+
+  function handleThresholdChange(e) {
+    const val = parseInt(e.target.value);
+    setThreshold(val);
+    sendConfig(val, minArea);
+  }
+
+  function handleMinAreaChange(e) {
+    const val = parseInt(e.target.value);
+    setMinArea(val);
+    sendConfig(threshold, val);
+  }
+
+  async function fetchRecordings() {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/recordings`);
+      if (response.ok) {
+        const data = await response.json();
+        setRecordings(data);
+      }
+    } catch (error) {
+      console.error("Error fetching recordings:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function deleteRecording(filename) {
+    if (!window.confirm("Voulez-vous vraiment supprimer cet enregistrement ?")) return;
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/recordings/${filename}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        setRecordings(prev => prev.filter(r => r.id !== filename));
+        if (activeVideo === filename) {
+          setActiveVideo(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting recording:", error);
+    }
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatDate(isoString) {
+    const d = new Date(isoString);
+    return d.toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  }
+
   function connectWS() {
-    const defaultUrl = `ws://${window.location.hostname}:6005/ws`;
-    const wsUrl = import.meta.env.VITE_WS_URL || defaultUrl;
     ws.current = new WebSocket(wsUrl);
     
     ws.current.onopen = () => {
@@ -34,6 +122,12 @@ function App() {
 
       if (data.active !== undefined) {
         setIsActive(data.active);
+      }
+      if (data.threshold !== undefined) {
+        setThreshold(data.threshold);
+      }
+      if (data.min_area !== undefined) {
+        setMinArea(data.min_area);
       }
       
       setTimestamp(new Date(data.timestamp).toLocaleTimeString());
@@ -51,12 +145,24 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (showGallery) {
+      fetchRecordings();
+    }
+  }, [showGallery]);
+
   return (
     <div className="app-container">
       <header>
         <div className="logo">
           <Shield className="logo-icon" size={32} />
           <span>iSpy AI</span>
+        </div>
+        <div className="header-status">
+          <div className={`status-badge ${isActive ? 'active' : ''}`}>
+            <span className={`status-dot ${isActive ? (isMotion ? 'recording' : 'active') : ''}`}></span>
+            <span>{isActive ? (isMotion ? "ENREGISTREMENT" : "SURVEILLANCE") : "VEILLE"}</span>
+          </div>
         </div>
       </header>
 
@@ -67,7 +173,7 @@ function App() {
           ) : (
             <div className="flex flex-col items-center gap-4 text-slate-500">
               <Radio className="animate-pulse" size={48} />
-              <p>Waiting for camera feed...</p>
+              <p>Connexion à la caméra...</p>
             </div>
           )}
           
@@ -91,14 +197,164 @@ function App() {
 
           <div className="overlay-controls flex gap-3">
             <button 
+              className={`btn-icon ${showSettings ? 'active-btn' : ''}`}
+              onClick={() => setShowSettings(prev => !prev)}
+              title="Réglages de détection"
+            >
+              <Sliders size={20} />
+            </button>
+            
+            <button 
+              className={`btn-icon ${showGallery ? 'active-btn' : ''}`}
+              onClick={() => setShowGallery(prev => !prev)}
+              title="Galerie d'enregistrements"
+            >
+              <Film size={20} />
+            </button>
+
+            <button 
               className="btn-icon" 
               onClick={toggleCamera} 
-              title={isActive ? "Pause Monitoring" : "Resume Monitoring"}
+              title={isActive ? "Mettre en veille" : "Activer la surveillance"}
             >
               {isActive ? <Pause size={20} /> : <Play size={20} />}
             </button>
           </div>
         </section>
+
+        {/* Settings Panel */}
+        <AnimatePresence>
+          {showSettings && (
+            <motion.div 
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="settings-panel panel pointer-events-auto"
+            >
+              <div className="panel-header">
+                <h3><Sliders size={18} /> Réglages Détection</h3>
+                <button className="btn-close" onClick={() => setShowSettings(false)}><X size={18} /></button>
+              </div>
+              
+              <div className="setting-item">
+                <div className="setting-label">
+                  <span>Seuil de Mouvement : {threshold}</span>
+                  <span className="info-txt">Plus bas = plus sensible</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="5" 
+                  max="50" 
+                  value={threshold} 
+                  onChange={handleThresholdChange}
+                />
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-label">
+                  <span>Taille Zone Min (px) : {minArea}</span>
+                  <span className="info-txt">Plus bas = petits objets détectés</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="50" 
+                  max="2000" 
+                  step="50"
+                  value={minArea} 
+                  onChange={handleMinAreaChange}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Gallery Drawer */}
+        <AnimatePresence>
+          {showGallery && (
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="gallery-panel panel pointer-events-auto"
+            >
+              <div className="panel-header">
+                <h3><Film size={18} /> Enregistrements</h3>
+                <button className="btn-close" onClick={() => setShowGallery(false)}><X size={18} /></button>
+              </div>
+
+              <div className="event-list">
+                {isLoading ? (
+                  <p className="loading-txt">Chargement...</p>
+                ) : recordings.length === 0 ? (
+                  <p className="empty-txt">Aucun enregistrement vidéo</p>
+                ) : (
+                  recordings.map((video) => (
+                    <div key={video.id} className="event-card">
+                      <div className="event-details" onClick={() => setActiveVideo(video.id)}>
+                        <h4>{formatDate(video.date)}</h4>
+                        <p>{formatSize(video.size)}</p>
+                      </div>
+                      <div className="card-actions">
+                        <a 
+                          href={`${apiBaseUrl}/api/recordings/play/${video.id}`} 
+                          download 
+                          className="btn-action-icon"
+                          title="Télécharger"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Download size={16} />
+                        </a>
+                        <button 
+                          className="btn-action-icon btn-delete"
+                          title="Supprimer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteRecording(video.id);
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Video Player Modal */}
+        <AnimatePresence>
+          {activeVideo && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="modal-backdrop pointer-events-auto"
+            >
+              <motion.div 
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.9 }}
+                className="player-modal"
+              >
+                <div className="modal-header">
+                  <span>Lecture : {activeVideo}</span>
+                  <button className="btn-close" onClick={() => setActiveVideo(null)}><X size={20} /></button>
+                </div>
+                <div className="video-player-container">
+                  <video 
+                    src={`${apiBaseUrl}/api/recordings/play/${activeVideo}`} 
+                    controls 
+                    autoPlay 
+                    className="modal-video"
+                  />
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );

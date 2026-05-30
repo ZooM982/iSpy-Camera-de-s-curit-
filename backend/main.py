@@ -4,7 +4,8 @@ import time
 import threading
 import os
 from datetime import datetime
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import base64
@@ -71,6 +72,10 @@ class VideoCamera:
         self.latest_motion = False
         self.latest_timestamp = datetime.now().isoformat()
 
+        # Sensitivity settings
+        self.motion_threshold = 15
+        self.min_contour_area = 200
+
     def toggle(self, status: bool):
         self.is_active = status
         if not status:
@@ -125,13 +130,13 @@ class VideoCamera:
         # Slow down accumulation (0.02) to avoid "forgetting" motion
         cv2.accumulateWeighted(gray, self.reference_frame, 0.02)
         frame_delta = cv2.absdiff(gray, cv2.convertScaleAbs(self.reference_frame))
-        thresh = cv2.threshold(frame_delta, 15, 255, cv2.THRESH_BINARY)[1] # More sensitive (15 instead of 20)
+        thresh = cv2.threshold(frame_delta, self.motion_threshold, 255, cv2.THRESH_BINARY)[1]
         thresh = cv2.dilate(thresh, None, iterations=2)
         contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         motion_found = False
         for contour in contours:
-            if cv2.contourArea(contour) > 200: # Smaller objects detected (200 instead of 500)
+            if cv2.contourArea(contour) > self.min_contour_area:
                 motion_found = True
                 (x, y, w, h) = cv2.boundingRect(contour)
                 cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 1) # Thin green line for general motion
@@ -231,6 +236,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 data = await asyncio.wait_for(websocket.receive_json(), timeout=0.01)
                 if data.get("command") == "toggle":
                     video_camera.toggle(data.get("value"))
+                elif data.get("command") == "update_config":
+                    video_camera.motion_threshold = int(data.get("threshold", video_camera.motion_threshold))
+                    video_camera.min_contour_area = int(data.get("min_area", video_camera.min_contour_area))
             except asyncio.TimeoutError:
                 pass
 
@@ -239,7 +247,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     "image": video_camera.latest_frame_b64,
                     "motion": video_camera.latest_motion,
                     "timestamp": video_camera.latest_timestamp,
-                    "active": video_camera.is_active
+                    "active": video_camera.is_active,
+                    "threshold": video_camera.motion_threshold,
+                    "min_area": video_camera.min_contour_area
                 })
             
             await asyncio.sleep(0.05) # ~20 FPS
@@ -247,6 +257,48 @@ async def websocket_endpoint(websocket: WebSocket):
         print("Client disconnected")
     except Exception as e:
         print(f"Error: {e}")
+
+@app.get("/api/recordings")
+def get_recordings():
+    try:
+        files = []
+        if os.path.exists("recordings"):
+            for f in os.listdir("recordings"):
+                if f.endswith(".mp4"):
+                    path = os.path.join("recordings", f)
+                    stats = os.stat(path)
+                    files.append({
+                        "id": f,
+                        "name": f,
+                        "date": datetime.fromtimestamp(stats.st_mtime).isoformat(),
+                        "size": stats.st_size
+                    })
+        # Sort files: newest first
+        files.sort(key=lambda x: x["date"], reverse=True)
+        return files
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/recordings/play/{filename}")
+def play_recording(filename: str):
+    safe_filename = os.path.basename(filename)
+    path = os.path.join("recordings", safe_filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path, media_type="video/mp4")
+
+@app.delete("/api/recordings/{filename}")
+def delete_recording(filename: str):
+    safe_filename = os.path.basename(filename)
+    path = os.path.join("recordings", safe_filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        os.remove(path)
+        logging.info(f"DELETED RECORDING: {safe_filename}")
+        return {"status": "success", "message": f"Deleted {safe_filename}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
