@@ -18,6 +18,7 @@ function App() {
   const [showGallery, setShowGallery] = useState(false);
   const [activeVideo, setActiveVideo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isWsConnected, setIsWsConnected] = useState(false);
 
   const ws = useRef(null);
 
@@ -120,6 +121,7 @@ function App() {
     
     ws.current.onopen = () => {
       console.log('Connected to iSpy Backend');
+      setIsWsConnected(true);
     };
 
     ws.current.onmessage = (event) => {
@@ -141,6 +143,7 @@ function App() {
     };
 
     ws.current.onclose = () => {
+      setIsWsConnected(false);
       setTimeout(connectWS, 3000);
     };
   }
@@ -166,10 +169,17 @@ function App() {
           <span>iSpy AI</span>
         </div>
         <div className="header-status">
-          <div className={`status-badge ${isActive ? 'active' : ''}`}>
-            <span className={`status-dot ${isActive ? (isMotion ? 'recording' : 'active') : ''}`}></span>
-            <span>{isActive ? (isMotion ? "ENREGISTREMENT" : "SURVEILLANCE") : "VEILLE"}</span>
-          </div>
+          {!isWsConnected ? (
+            <div className="status-badge disconnected">
+              <span className="status-dot disconnected"></span>
+              <span>DÉCONNECTÉ</span>
+            </div>
+          ) : (
+            <div className={`status-badge ${isActive ? 'active' : ''}`}>
+              <span className={`status-dot ${isActive ? (isMotion ? 'recording' : 'active') : ''}`}></span>
+              <span>{isActive ? (isMotion ? "ENREGISTREMENT" : "SURVEILLANCE") : "VEILLE"}</span>
+            </div>
+          )}
         </div>
       </header>
 

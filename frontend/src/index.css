@@ -113,6 +113,17 @@ header * {
   animation: pulse 1.5s infinite;
 }
 
+.status-badge.disconnected {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger-color);
+}
+
+.status-dot.disconnected {
+  background: var(--danger-color);
+  box-shadow: 0 0 10px var(--danger-color);
+}
+
 @keyframes pulse {
   0% { opacity: 1; }
   50% { opacity: 0.4; }
