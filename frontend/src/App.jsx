@@ -128,7 +128,8 @@ function App() {
   }
 
   function connectWS() {
-    ws.current = new WebSocket(wsUrl);
+    const wsTarget = wsUrl.endsWith('/ws') ? wsUrl : `${wsUrl}/ws`;
+    ws.current = new WebSocket(wsTarget);
     
     ws.current.onopen = () => {
       console.log('Connected to iSpy Backend');
