@@ -11,9 +11,13 @@
 
 html, body {
   height: 100%;
+  width: 100%;
   margin: 0;
   padding: 0;
   background-color: var(--bg-color);
+  overflow: hidden;
+  position: fixed; /* Bloque le rebond/scroll sur iOS */
+  overscroll-behavior: none; /* Désactive le pull-to-refresh sur Android */
 }
 
 * {
@@ -21,17 +25,18 @@ html, body {
   padding: 0;
   box-sizing: border-box;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-tap-highlight-color: transparent; /* Retire l'effet de surbrillance grise au clic sur mobile */
 }
 
 body {
   background-color: var(--bg-color);
   color: var(--text-primary);
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .app-container {
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   overflow: hidden;
   position: relative;
   background: #000;
@@ -115,8 +120,8 @@ header * {
 }
 
 .main-layout {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   position: relative;
 }
 
@@ -124,8 +129,8 @@ header * {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   z-index: 10;
   background: #000;
   display: flex;
@@ -597,6 +602,21 @@ header * {
     right: 1.5rem;
     left: 1.5rem;
     bottom: 6.5rem;
+  }
+
+  .overlay-controls {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    justify-content: center;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8) 40%) !important;
+    padding: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom)) 1.5rem !important;
+    border-radius: 0 !important;
+  }
+  
+  .timestamp {
+    margin-top: 6rem !important;
   }
 }
 
