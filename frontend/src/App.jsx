@@ -74,7 +74,8 @@ function App() {
     try {
       const response = await fetch(`${apiBaseUrl}/api/recordings`, {
         headers: {
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': 'true',
+          'Bypass-Tunnel-Reminder': 'true'
         }
       });
       if (response.ok) {
@@ -94,7 +95,8 @@ function App() {
       const response = await fetch(`${apiBaseUrl}/api/recordings/${filename}`, {
         method: 'DELETE',
         headers: {
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': 'true',
+          'Bypass-Tunnel-Reminder': 'true'
         }
       });
       if (response.ok) {
