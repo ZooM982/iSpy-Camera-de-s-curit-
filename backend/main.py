@@ -48,7 +48,7 @@ out = None
 
 class VideoCamera:
     def __init__(self):
-        self.video = cv2.VideoCapture(0)
+        self.video = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         # Set resolution to HD for wider field of view
         self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -115,7 +115,7 @@ class VideoCamera:
             logging.warning("Failed to read from camera. Attempting reconnection...")
             self.video.release()
             time.sleep(2)
-            self.video = cv2.VideoCapture(0)
+            self.video = cv2.VideoCapture(0, cv2.CAP_DSHOW)
             return None, False
 
         self.frame_count += 1

@@ -60,7 +60,11 @@ function App() {
   async function fetchRecordings() {
     setIsLoading(true);
     try {
-      const response = await fetch(`${apiBaseUrl}/api/recordings`);
+      const response = await fetch(`${apiBaseUrl}/api/recordings`, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setRecordings(data);
@@ -76,7 +80,10 @@ function App() {
     if (!window.confirm("Voulez-vous vraiment supprimer cet enregistrement ?")) return;
     try {
       const response = await fetch(`${apiBaseUrl}/api/recordings/${filename}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
       });
       if (response.ok) {
         setRecordings(prev => prev.filter(r => r.id !== filename));
@@ -155,7 +162,7 @@ function App() {
     <div className="app-container">
       <header>
         <div className="logo">
-          <Shield className="logo-icon" size={32} />
+          <img src="/logo.svg" alt="iSpy AI" className="logo-img" style={{ width: '32px', height: '32px' }} />
           <span>iSpy AI</span>
         </div>
         <div className="header-status">
